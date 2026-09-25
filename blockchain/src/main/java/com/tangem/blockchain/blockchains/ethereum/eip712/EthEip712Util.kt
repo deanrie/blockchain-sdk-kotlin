@@ -219,19 +219,44 @@ internal object EthEip712Util {
     }
 
     private fun typeHash(typeSpec: Map<String, List<MessageTypeProperty>>, typeName: String): List<String> {
+        val dependencies = findStructDependencies(typeSpec, typeName)
+        return listOf(encodeStructType(typeSpec, typeName)) +
+            dependencies.sorted().map { encodeStructType(typeSpec, it) }
+    }
+
+    private fun encodeStructType(typeSpec: Map<String, List<MessageTypeProperty>>, typeName: String): String {
         val types = typeSpec[typeName] ?: emptyList()
-        val encodedStruct = types
-            .joinToString(
-                separator = ",",
-                prefix = "$typeName(",
-                postfix = ")",
-                transform = { (name, type) -> "$type $name" },
-            )
-        val structParams = types.asSequence()
-            .filterNot { typeSpec[it.type.substringBefore("[")] == null }
-            .map { (_, type) -> typeHash(typeSpec, type.substringBefore("[")) }
-            .flatten().distinct().sorted().toList()
-        return listOf(encodedStruct) + structParams
+        return types.joinToString(
+            separator = ",",
+            prefix = "$typeName(",
+            postfix = ")",
+            transform = { (name, type) -> "$type $name" },
+        )
+    }
+
+    /**
+     * Transitive struct types referenced from [primaryType], excluding the primary type itself (EIP-712 `encodeType`).
+     * Iterative with a visited set, so self-referential or mutually recursive `types` (allowed by the spec, e.g.
+     * `Person { Person[] friends }`) terminate instead of recursing until StackOverflowError.
+     */
+    private fun findStructDependencies(
+        typeSpec: Map<String, List<MessageTypeProperty>>,
+        primaryType: String,
+    ): Set<String> {
+        val visited = mutableSetOf(primaryType)
+        val dependencies = linkedSetOf<String>()
+        val pending = ArrayDeque(listOf(primaryType))
+        while (pending.isNotEmpty()) {
+            val current = pending.removeLast()
+            for (property in typeSpec[current].orEmpty()) {
+                val baseType = property.type.substringBefore("[")
+                if (typeSpec[baseType] != null && visited.add(baseType)) {
+                    dependencies.add(baseType)
+                    pending.addLast(baseType)
+                }
+            }
+        }
+        return dependencies
     }
 
     private fun <T> readNumber(rawNumber: Any, creator: (BigInteger) -> T): T = when (rawNumber) {
