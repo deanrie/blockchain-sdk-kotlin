@@ -102,7 +102,8 @@ class TezosWalletManager(
         ) {
             is SimpleResult.Failure -> Result.Failure(response.error)
             is SimpleResult.Success -> {
-                val transactionToSend = transactionBuilder.buildToSend(signature, forgedContents)
+                // Broadcast the same canonical (low-S) signature that preapply accepted.
+                val transactionToSend = transactionBuilder.buildToSend(canonicalSignature, forgedContents)
                 when (val sendResult = networkProvider.sendTransaction(transactionToSend)) {
                     is SimpleResult.Failure -> Result.Failure(sendResult.error)
                     SimpleResult.Success -> {

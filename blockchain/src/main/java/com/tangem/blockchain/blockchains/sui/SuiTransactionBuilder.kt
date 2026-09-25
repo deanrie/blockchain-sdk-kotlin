@@ -207,7 +207,9 @@ internal class SuiTransactionBuilder(
         val coins = mutableListOf<Sui.ObjectRef>()
         var coinsBalance = BigDecimal.ZERO
 
-        walletInfo.coins.forEach { coin ->
+        // PaySui takes SUI coin objects only; token coin objects returned by suix_getAllCoins must not be
+        // selected as inputs nor counted towards the SUI balance.
+        walletInfo.coins.filter { it.coinType == COIN_TYPE }.forEach { coin ->
             val coinObject = Sui.ObjectRef.newBuilder().apply {
                 objectId = coin.objectId
                 version = coin.version

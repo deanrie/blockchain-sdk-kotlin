@@ -109,7 +109,7 @@ internal class KoinosWalletManager(
         val uncompiledTransaction = transactionData.requireUncompiled()
 
         validate(uncompiledTransaction).onFailure {
-            Result.Failure(it as? BlockchainSdkError ?: BlockchainSdkError.FailedToBuildTx)
+            return Result.Failure(it as? BlockchainSdkError ?: BlockchainSdkError.FailedToBuildTx)
         }
 
         val manaLimit = uncompiledTransaction.fee?.amount?.value
