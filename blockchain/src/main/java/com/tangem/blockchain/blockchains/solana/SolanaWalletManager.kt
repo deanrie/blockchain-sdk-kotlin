@@ -131,6 +131,10 @@ class SolanaWalletManager internal constructor(
         val amount = uncompiledTransaction.amount
         val destination = uncompiledTransaction.destinationAddress
 
+        // For tokens the destination account rent is charged in SOL and is already part of the fee (see getFee);
+        // comparing it with a token amount would mix units.
+        if (amount.type is AmountType.Token) return kotlin.Result.success(Unit)
+
         val ownerAccountInfoResult = getOwnerAccountInfo(uncompiledTransaction.amount)
         val ownerAccountInfo = ownerAccountInfoResult?.successOr { return kotlin.Result.failure(it.error) }
         val rentAmount = getAccountCreationRent(amount, destination, ownerAccountInfo).successOr {
@@ -404,10 +408,17 @@ class SolanaWalletManager internal constructor(
     override suspend fun getFee(amount: Amount, destination: String): Result<TransactionFee> {
         val ownerAccountInfo = getOwnerAccountInfo(amount)?.successOr { return it }
         val networkFee = getNetworkFee(amount, destination, ownerAccountInfo).successOr { return it }
+        // A token send to a recipient without an associated token account also pays the rent-exempt minimum
+        // of the account it creates (the sender is the payer of createAssociatedTokenAccount); show it as fee.
+        val tokenAccountCreationFee = if (amount.type is AmountType.Token) {
+            getAccountCreationRent(amount, destination, ownerAccountInfo).successOr { return it }
+        } else {
+            BigDecimal.ZERO
+        }
 
         return Result.Success(
             data = TransactionFee.Single(
-                Fee.Common(Amount(networkFee, wallet.blockchain)),
+                Fee.Common(Amount(networkFee + tokenAccountCreationFee, wallet.blockchain)),
             ),
         )
     }
