@@ -13,6 +13,7 @@ import com.tangem.common.extensions.toCompressedPublicKey
 import org.bitcoinj.core.ECKey
 import org.bitcoinj.core.Utils
 import java.math.BigInteger
+import java.math.RoundingMode
 
 class BinanceTransactionBuilder(
     publicKey: ByteArray,
@@ -50,8 +51,9 @@ class BinanceTransactionBuilder(
         }
         transfer.fromAddress = uncompiledTransaction.sourceAddress
         transfer.toAddress = uncompiledTransaction.destinationAddress
+        // setScale without a rounding mode throws ArithmeticException for an amount with more than 8 decimals.
         transfer.amount = requireNotNull(uncompiledTransaction.amount.value)
-            .setScale(Blockchain.Binance.decimals()).toPlainString()
+            .setScale(Blockchain.Binance.decimals(), RoundingMode.DOWN).toPlainString()
 
         val options = TransactionOption.DEFAULT_INSTANCE
         options.memo = (uncompiledTransaction.extras as? BinanceTransactionExtras)?.memo.orEmpty()

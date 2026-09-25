@@ -70,7 +70,8 @@ internal class AlgorandNetworkService(
                     genesisId = response.genesisId,
                     genesisHash = response.genesisHash,
                     firstRound = response.lastRound,
-                    lastRound = response.lastRound + BOUNCE_ROUND_VALUE,
+                    // A node returning a round near Long.MAX_VALUE would otherwise wrap into a negative last round.
+                    lastRound = response.lastRound.coerceAtMost(Long.MAX_VALUE - BOUNCE_ROUND_VALUE) + BOUNCE_ROUND_VALUE,
                 )
             }
     }

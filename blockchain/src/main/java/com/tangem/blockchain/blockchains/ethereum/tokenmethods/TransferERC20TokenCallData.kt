@@ -9,6 +9,7 @@ import com.tangem.blockchain.common.smartcontract.Erc20CallData
 import com.tangem.blockchain.extensions.bigIntegerValue
 import com.tangem.blockchain.extensions.formatHex
 import com.tangem.blockchain.extensions.hexToFixedSizeBytes
+import com.tangem.blockchain.extensions.isValidHex
 import com.tangem.blockchain.extensions.toFixedSizeBytes
 import com.tangem.common.extensions.hexToBytes
 import com.tangem.common.extensions.toHexString
@@ -37,7 +38,8 @@ data class TransferERC20TokenCallData(val destination: String, val amount: Amoun
      */
     private fun encodeDestination(): ByteArray {
         val addressHex = destination.addressWithoutPrefix()
-        require(addressHex.length == ADDRESS_HEX_LENGTH && addressHex.all { it.digitToIntOrNull(HEX_RADIX) != null }) {
+        // isValidHex is ASCII-only; digitToIntOrNull(16) also accepts Unicode digits and full-width A-F.
+        require(addressHex.length == ADDRESS_HEX_LENGTH && addressHex.isValidHex()) {
             "Invalid ERC20 transfer destination"
         }
 
@@ -56,7 +58,6 @@ data class TransferERC20TokenCallData(val destination: String, val amount: Amoun
 
         const val METHOD_ID = "0xa9059cbb"
 
-        private const val HEX_RADIX = 16
         private const val METHOD_ID_SIZE = 4
         private const val WORD_SIZE = 32
         private const val ARGUMENTS_COUNT = 2
