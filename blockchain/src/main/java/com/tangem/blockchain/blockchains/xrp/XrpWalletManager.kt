@@ -111,10 +111,16 @@ internal class XrpWalletManager(
         val sourceAddress = XrpAddressService.decodeXAddress(transactionData.sourceAddress)
             ?.address ?: transactionData.sourceAddress
         val sequence = networkProvider.getSequence(sourceAddress).successOr { return it }
-        val fee = innerGetFee().successOr { return it }
+        // getFee() doubled the displayed fee for this case so that it covers both transactions; split the
+        // selected fee between TrustSet and Payment instead of charging a fresh "normal" fee on top of it.
+        val selectedFee = transactionData.fee ?: return Result.Failure(BlockchainSdkError.FailedToBuildTx)
+        val selectedFeeValue = selectedFee.amount.value ?: return Result.Failure(BlockchainSdkError.FailedToBuildTx)
+        val perTransactionFee = Fee.Common(
+            selectedFee.amount.copy(value = selectedFeeValue.divide(2.toBigDecimal())),
+        )
         val trustSetData = TransactionData.Uncompiled(
             amount = Amount(blockchain = blockchain, value = 0.toBigDecimal()),
-            fee = fee.normal,
+            fee = perTransactionFee,
             sourceAddress = transactionData.sourceAddress,
             destinationAddress = transactionData.sourceAddress,
             contractAddress = contractAddress,
@@ -125,7 +131,7 @@ internal class XrpWalletManager(
             coinAmount = wallet.getCoinAmount(),
         ).successOr { return it }
         val (paymentHash, secondaryTx) = transactionBuilder.buildToSignWithNoRipple(
-            transactionData = transactionData,
+            transactionData = transactionData.copy(fee = perTransactionFee),
             sequenceOverride = sequence + 1,
         )
             .successOr { return it }
