@@ -45,7 +45,11 @@ internal class AlephiumTransactionBuilder(
                     amount = U256.unsafe(it.amount.toBigDecimal()),
                     lockupScript = lockupScript,
                     lockTime = TimeStamp(it.lockTime),
-                    tokens = listOf(),
+                    // Tokens sitting on a spent UTXO must flow into the change output (UnsignedTransaction
+                    // already computes the token remainder); with an empty list here they were burned.
+                    tokens = it.tokens.orEmpty().map { token ->
+                        TokenId(Blake2b256(ByteString(token.id.hexToBytes()))) to U256.unsafe(token.amount.toBigInteger())
+                    },
                     additionalData = ByteString(it.additionalData?.hexToBytes() ?: byteArrayOf()),
                 ),
             )
