@@ -50,14 +50,16 @@ internal class SolanaTransactionSizeReducer(
 
         val existLookupTables = if (parsed.compiledAltTable != null && parsed.compiledAltTable.isNotEmpty()) {
             val tableInfos = mutableListOf<NewSolanaAccountInfo.Value>()
+            // Tables are matched to the message's lookups by position, so a single missing table must fail the
+            // whole rebuild: skipping it would resolve the next lookup's indexes against the wrong table.
             parsed.compiledAltTable.forEach { compiledAltTable ->
                 val info = multiNetworkProvider.performRequest {
                     getTableLookupInfo(org.p2p.solanaj.core.PublicKey(compiledAltTable.account))
                 }.successOr {
                     Logger.logTransaction("fail to get lookup table info: $it")
-                    null
+                    return Result.Failure(BlockchainSdkError.FailedToBuildTx)
                 }
-                info?.let { tableInfos.add(info) }
+                tableInfos.add(info)
             }
 
             tableInfos.map {
@@ -71,7 +73,11 @@ internal class SolanaTransactionSizeReducer(
 
         Logger.logTransaction("lookupTables count: ${existLookupTables?.size}")
 
-        val existTablesAddresses = existLookupTables?.takeAddressesForTx(parsed) ?: emptyList()
+        val existTablesAddresses = runCatching { existLookupTables?.takeAddressesForTx(parsed) ?: emptyList() }
+            .getOrElse {
+                Logger.logTransaction("lookup table index out of range: ${it.message}")
+                return Result.Failure(BlockchainSdkError.FailedToBuildTx)
+            }
         val allAddresses = parsed.staticAccountAddresses + existTablesAddresses.map { it.address }
 
         val transactionInstructions = rawTransactionParser.convertCompiledToTransactionInstructions(
@@ -415,13 +421,17 @@ private fun List<TransactionInstruction>.patchComputeBudgetProgramInstructions()
 private fun List<AddressLookupTableState>.takeAddressesForTx(data: TransactionRawData): List<AltAddress> {
     val writeableAddresses = mutableListOf<AltAddress>()
     val readonlyAddresses = mutableListOf<AltAddress>()
-    data.compiledAltTable?.forEachIndexed { i, altTable ->
+    val compiledTables = data.compiledAltTable.orEmpty()
+    require(compiledTables.size == size) { "expected ${compiledTables.size} lookup tables, got $size" }
+    compiledTables.forEachIndexed { i, altTable ->
         val tableState = this[i]
         altTable.writableIndexes.forEach {
-            writeableAddresses.add(AltAddress(tableState.addresses[it], true))
+            val address = requireNotNull(tableState.addresses.getOrNull(it)) { "writable index $it out of range" }
+            writeableAddresses.add(AltAddress(address, true))
         }
         altTable.readonlyIndexes.forEach {
-            readonlyAddresses.add(AltAddress(tableState.addresses[it], false))
+            val address = requireNotNull(tableState.addresses.getOrNull(it)) { "readonly index $it out of range" }
+            readonlyAddresses.add(AltAddress(address, false))
         }
     }
     return writeableAddresses + readonlyAddresses
