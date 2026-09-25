@@ -1,6 +1,8 @@
 package com.tangem.blockchain.blockchains.kaspa
 
 import com.google.common.truth.Truth
+import com.tangem.blockchain.blockchains.kaspa.kaspacashaddr.KaspaAddressType
+import com.tangem.blockchain.blockchains.kaspa.kaspacashaddr.KaspaCashAddr
 import com.tangem.common.extensions.hexToBytes
 import org.junit.Test
 
@@ -90,5 +92,27 @@ class KaspaAddressTest {
             0x4c.toByte(), 0x37.toByte(), 0xe8.toByte(), 0xc3.toByte(),
         )
         Truth.assertThat(addressService.makeAddress(publicKey)).isEqualTo(address)
+    }
+    @Test
+    fun validateUppercaseAddressAndDecodeIt() {
+        val addressService = KaspaAddressService(isTestnet = false)
+        val address = "kaspa:qpsqw2aamda868dlgqczeczd28d5nc3rlrj3t87vu9q58l2tugpjs2psdm4fv"
+
+        Truth.assertThat(addressService.validate(address.uppercase())).isTrue()
+        Truth.assertThat(addressService.getPublicKey(address.uppercase()))
+            .isEqualTo(addressService.getPublicKey(address))
+    }
+
+    @Test
+    fun rejectChecksumValidAddressWithWrongPayloadLength() {
+        val cashAddr = KaspaCashAddr(false)
+        val addressService = KaspaAddressService(isTestnet = false)
+        val short = cashAddr.toCashAddress(KaspaAddressType.P2PK_SCHNORR, ByteArray(20) { it.toByte() })
+        val ecdsaWith32 = cashAddr.toCashAddress(KaspaAddressType.P2PK_ECDSA, ByteArray(32) { it.toByte() })
+        val ecdsaWith33 = cashAddr.toCashAddress(KaspaAddressType.P2PK_ECDSA, ByteArray(33) { it.toByte() })
+
+        Truth.assertThat(addressService.validate(short)).isFalse()
+        Truth.assertThat(addressService.validate(ecdsaWith32)).isFalse()
+        Truth.assertThat(addressService.validate(ecdsaWith33)).isTrue()
     }
 }

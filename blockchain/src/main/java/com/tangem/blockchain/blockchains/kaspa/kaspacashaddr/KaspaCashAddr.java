@@ -56,6 +56,9 @@ public class KaspaCashAddr {
             throw new RuntimeException("Address wasn't valid: " + kaspaAddress);
         }
 
+        // isValidCashAddress accepts a single-case address of either case; Base32 only knows lowercase.
+        kaspaAddress = kaspaAddress.toLowerCase();
+
         KaspaAddressDecodedParts decoded = new KaspaAddressDecodedParts();
         String[] addressParts = kaspaAddress.split(SEPARATOR);
         if (addressParts.length == 2) {
@@ -70,10 +73,35 @@ public class KaspaCashAddr {
         byte versionByte = addressData[0];
         byte[] hash = Arrays.copyOfRange(addressData, 1, addressData.length);
 
-        decoded.setAddressType(getAddressTypeFromVersionByte(versionByte));
+        KaspaAddressType addressType = getAddressTypeFromVersionByte(versionByte);
+        checkPayloadLength(addressType, hash);
+
+        decoded.setAddressType(addressType);
         decoded.setHash(hash);
 
         return decoded;
+    }
+
+    /**
+     * The version byte fixes the payload length: a Schnorr public key or a script hash is 32 bytes, an ECDSA
+     * public key is 33 bytes. A checksum-valid address with another payload length would otherwise be turned
+     * into a non-standard output script.
+     */
+    private static void checkPayloadLength(KaspaAddressType addressType, byte[] hash) {
+        int expectedLength;
+        switch (addressType) {
+            case P2PK_ECDSA:
+                expectedLength = 33;
+                break;
+            case P2PK_SCHNORR:
+            case P2SH:
+            default:
+                expectedLength = 32;
+                break;
+        }
+        if (hash.length != expectedLength) {
+            throw new RuntimeException("Invalid payload length " + hash.length + " for " + addressType);
+        }
     }
 
     private static KaspaAddressType getAddressTypeFromVersionByte(byte versionByte) {
@@ -113,7 +141,16 @@ public class KaspaCashAddr {
                     KaspaBase32.decode(kaspaAddress));
 
             byte[] calculateChecksumBytesPolymod = calculateChecksumBytesPolymod(checksumData);
-            return new BigInteger(calculateChecksumBytesPolymod).compareTo(BigInteger.ZERO) == 0;
+            if (new BigInteger(calculateChecksumBytesPolymod).compareTo(BigInteger.ZERO) != 0) {
+                return false;
+            }
+
+            byte[] payload = KaspaBase32.decode(kaspaAddress);
+            payload = Arrays.copyOfRange(payload, 0, payload.length - 8);
+            payload = convertBits(payload, 5, 8, true);
+            KaspaAddressType addressType = getAddressTypeFromVersionByte(payload[0]);
+            checkPayloadLength(addressType, Arrays.copyOfRange(payload, 1, payload.length));
+            return true;
         } catch (RuntimeException re) {
             return false;
         }
