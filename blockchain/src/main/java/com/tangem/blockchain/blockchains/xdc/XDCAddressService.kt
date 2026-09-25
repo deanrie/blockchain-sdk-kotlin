@@ -19,7 +19,7 @@ internal class XDCAddressService : EthereumAddressService() {
     }
 
     override fun validate(address: String): Boolean {
-        return super.validate(address.replace(XDC_PREFIX, ETH_PREFIX))
+        return super.validate(formatWith0xPrefix(address))
     }
 
     private fun makeAddressWith0xPrefix(walletPublicKey: ByteArray, curve: EllipticCurve?): String {
@@ -36,9 +36,10 @@ internal class XDCAddressService : EthereumAddressService() {
         private const val ETH_PREFIX = "0x"
         private const val XDC_PREFIX = "xdc"
 
+        /** Only the leading prefix is swapped: `replace` would also rewrite an `xdc`/`0x` inside the hex body. */
         fun formatWith0xPrefix(address: String): String {
             return if (address.startsWith(XDC_PREFIX)) {
-                address.replace(XDC_PREFIX, ETH_PREFIX)
+                ETH_PREFIX + address.removePrefix(XDC_PREFIX)
             } else {
                 address
             }
@@ -46,7 +47,7 @@ internal class XDCAddressService : EthereumAddressService() {
 
         fun formatWithXdcPrefix(address: String): String {
             return if (address.startsWith(ETH_PREFIX)) {
-                address.replace(ETH_PREFIX, XDC_PREFIX)
+                XDC_PREFIX + address.removePrefix(ETH_PREFIX)
             } else {
                 address
             }
