@@ -59,6 +59,10 @@ internal class SolanaTransactionSizeReducer(
                     Logger.logTransaction("fail to get lookup table info: $it")
                     return Result.Failure(BlockchainSdkError.FailedToBuildTx)
                 }
+                if (info == null) {
+                    Logger.logTransaction("lookup table account not found: ${compiledAltTable.account}")
+                    return Result.Failure(BlockchainSdkError.FailedToBuildTx)
+                }
                 tableInfos.add(info)
             }
 
