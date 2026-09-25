@@ -14,6 +14,10 @@ class MemoValidatorFactory(
 ) {
 
     fun create(blockchain: Blockchain): MemoValidator {
+        when (blockchain) {
+            Blockchain.Casper, Blockchain.InternetComputer -> return NumericMemoValidator
+            else -> Unit
+        }
         val assembly = getAssembly(blockchain) ?: return DefaultMemoValidator
         val providerTypes = blockchainProviderTypes[blockchain].orEmpty()
         return assembly.make(
