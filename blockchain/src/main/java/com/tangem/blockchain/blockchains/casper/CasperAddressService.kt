@@ -3,6 +3,7 @@ package com.tangem.blockchain.blockchains.casper
 import com.tangem.blockchain.blockchains.casper.utils.CasperAddressUtils.checksum
 import com.tangem.blockchain.common.address.AddressService
 import com.tangem.blockchain.extensions.isSameCase
+import com.tangem.blockchain.extensions.isValidHex
 import com.tangem.common.card.EllipticCurve
 import com.tangem.common.extensions.hexToBytes
 import com.tangem.common.extensions.toCompressedPublicKey
@@ -24,11 +25,17 @@ internal class CasperAddressService : AddressService() {
             return false
         }
 
+        // The key must be ASCII hex regardless of case: a same-case non-hex string used to pass, and a
+        // mixed-case one made hexToBytes() throw out of the validator.
+        if (!address.isValidHex()) {
+            return false
+        }
+
         // don't check checksum if it's not mixed case
         if (address.isSameCase()) {
             return true
         }
 
-        return address == address.hexToBytes().checksum()
+        return runCatching { address == address.hexToBytes().checksum() }.getOrDefault(false)
     }
 }

@@ -3,6 +3,8 @@ package com.tangem.blockchain.blockchains.chia
 import com.google.common.truth.Truth
 import com.tangem.blockchain.common.Blockchain
 import com.tangem.common.extensions.hexToBytes
+import com.tangem.blockchain.blockchains.binance.client.encoding.Crypto
+import org.bitcoinj.core.Bech32
 import org.junit.Test
 
 class ChiaAddressTest {
@@ -29,5 +31,14 @@ class ChiaAddressTest {
 
         Truth.assertThat(chiaAddressService.validate(address)).isTrue()
         Truth.assertThat(chiaTestnetAddressService.validate(addressTestnet)).isTrue()
+    }
+
+    @Test
+    fun rejectBech32mAddressWithShortPuzzleHash() {
+        val shortHash = ByteArray(20) { it.toByte() }
+        val data = Crypto.convertBits(shortHash, 0, shortHash.size, 8, 5, true)
+        val address = Bech32.encode(Bech32.Encoding.BECH32M, "xch", data)
+
+        Truth.assertThat(chiaAddressService.validate(address)).isFalse()
     }
 }

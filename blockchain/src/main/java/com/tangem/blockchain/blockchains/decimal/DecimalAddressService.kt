@@ -3,6 +3,7 @@ package com.tangem.blockchain.blockchains.decimal
 import com.tangem.blockchain.blockchains.binance.client.encoding.Crypto
 import com.tangem.blockchain.common.address.AddressService
 import com.tangem.blockchain.common.address.AddressType
+import com.tangem.blockchain.extensions.isValidHex
 import com.tangem.common.card.EllipticCurve
 import com.tangem.common.extensions.hexToBytes
 import com.tangem.common.extensions.toDecompressedPublicKey
@@ -44,21 +45,28 @@ internal class DecimalAddressService : AddressService() {
     }
 
     override fun validate(address: String): Boolean {
-        val addressToValidate = when {
-            address.startsWith(ADDRESS_PREFIX) || address.startsWith(LEGACY_ADDRESS_PREFIX) -> {
-                convertDelAddressToDscAddress(address)
+        // Typed input must never throw out of a validator: bitcoinj's Bech32.decode throws on partial or
+        // malformed "d0…"/"dx…" strings and the Send screen calls validate() on every keystroke.
+        return runCatching {
+            val addressToValidate = when {
+                address.startsWith(ADDRESS_PREFIX) || address.startsWith(LEGACY_ADDRESS_PREFIX) -> {
+                    convertDelAddressToDscAddress(address)
+                }
+
+                else -> address
             }
 
-            else -> address
-        }
-
-        return Address(addressToValidate).hasValidERC55ChecksumOrNoChecksum()
+            val hex = addressToValidate.removePrefix(ERC55_ADDRESS_PREFIX)
+            hex.length == ADDRESS_HEX_LENGTH && hex.isValidHex() &&
+                Address(addressToValidate).hasValidERC55ChecksumOrNoChecksum()
+        }.getOrDefault(false)
     }
 
     companion object {
         private const val ADDRESS_PREFIX = "d0"
         private const val LEGACY_ADDRESS_PREFIX = "dx"
         private const val ERC55_ADDRESS_PREFIX = "0x"
+        private const val ADDRESS_HEX_LENGTH = 40
 
         @Suppress("MagicNumber")
         fun convertDelAddressToDscAddress(addressHex: String): String {
@@ -69,6 +77,9 @@ internal class DecimalAddressService : AddressService() {
             val (prefix, addressBytes) = Bech32.decode(addressHex).let { it.hrp to it.data }
             require(value = prefix != null && addressBytes != null) {
                 "Unable to convert DEL address to DSC address: $addressHex"
+            }
+            require(value = prefix == ADDRESS_PREFIX || prefix == LEGACY_ADDRESS_PREFIX) {
+                "Unexpected DEL address prefix: $prefix"
             }
 
             val convertedAddressBytes = Crypto.convertBits(addressBytes, 0, addressBytes.size, 5, 8, false)

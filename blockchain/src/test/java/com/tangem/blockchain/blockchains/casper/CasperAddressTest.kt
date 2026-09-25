@@ -38,4 +38,13 @@ internal class CasperAddressTest {
 
         Truth.assertThat(addressService.validate(address)).isTrue()
     }
+
+    @Test
+    fun rejectNonHexKeyOfCorrectLengthWithoutThrowing() {
+        val sameCaseNonHex = "01" + "z".repeat(64)
+        val mixedCaseNonHex = "01" + "Zz".repeat(32)
+
+        Truth.assertThat(addressService.validate(sameCaseNonHex)).isFalse()
+        Truth.assertThat(addressService.validate(mixedCaseNonHex)).isFalse()
+    }
 }

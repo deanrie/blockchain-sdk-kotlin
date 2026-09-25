@@ -34,4 +34,13 @@ internal class DecimalAddressTest {
         Truth.assertThat(addressService.validate(ercAddress)).isTrue()
         Truth.assertThat(addressService.validate(dscAddress)).isTrue()
     }
+
+    @Test
+    fun rejectPartialOrMalformedDelAddressWithoutThrowing() {
+        // Partial input while typing — bitcoinj's Bech32.decode throws on these.
+        Truth.assertThat(addressService.validate("d0")).isFalse()
+        Truth.assertThat(addressService.validate("d01ccmkx4edg5t3unp9egyp3dzwthtlts2m320gh")).isFalse()
+        Truth.assertThat(addressService.validate("dx")).isFalse()
+        Truth.assertThat(addressService.validate("0x12")).isFalse()
+    }
 }

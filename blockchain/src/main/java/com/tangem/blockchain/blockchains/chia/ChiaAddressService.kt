@@ -27,7 +27,9 @@ class ChiaAddressService(blockchain: Blockchain) : AddressService() {
     override fun validate(address: String): Boolean {
         return try {
             val decoded = Bech32.decode(address)
-            decoded.hrp == humanReadablePart && decoded.encoding == Bech32.Encoding.BECH32M
+            decoded.hrp == humanReadablePart &&
+                decoded.encoding == Bech32.Encoding.BECH32M &&
+                getPuzzleHash(address).size == PUZZLE_HASH_SIZE
         } catch (e: AddressFormatException) {
             false
         } catch (e: IllegalArgumentException) {
@@ -39,6 +41,7 @@ class ChiaAddressService(blockchain: Blockchain) : AddressService() {
         private const val HRP_MAINNET = "xch"
         private const val HRP_TESTNET = "txch"
         private const val FROM_BITS = 8
+        private const val PUZZLE_HASH_SIZE = 32
         private const val TO_BITS = 5
 
         // curried and serialized signature.clsp (https://github.com/Chia-Network/chialisp-crash-course/blob/af620db2505db507b348d4f036dc4955fa81a004/signature.clsp)
